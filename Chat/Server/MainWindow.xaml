@@ -10,6 +10,7 @@
         Width="800"
         Closing="Window_Closing">
     <Grid>
-        
+        <TextBlock x:Name="LoggerTextBlock" Margin="120,48,126.6,37" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="True" FontSize="14" Background="#FFDFEFF0"/>
+        <Label Content="Messages" HorizontalAlignment="Left" Margin="279,10,0,0" VerticalAlignment="Top" Width="219" FontSize="18" Foreground="#FF152FF4" FontWeight="Bold" FontStyle="Italic" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
     </Grid>
 </Window>

@@ -36,7 +36,6 @@ namespace Client
             }
             catch (SocketException)
             {
-                disconnectButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 MessageBox.Show("Internal server error! Disconnected", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

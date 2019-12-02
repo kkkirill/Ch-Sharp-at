@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -11,9 +12,11 @@ namespace Server
     public partial class MainWindow : Window
     {
         private Thread serverThread;
-        private Socket listenerSocker;
+        private Socket listenerSocket;
         private List<Socket> clients;
         private List<Thread> threads;
+        private SynchronizationContext context;
+
 
         private object sync = new object();
 
@@ -21,12 +24,14 @@ namespace Server
         {
             InitializeComponent();
 
+            context = SynchronizationContext.Current;
+
             clients = new List<Socket>();
             threads = new List<Thread>();
 
-            listenerSocker = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            listenerSocker.Bind(new IPEndPoint(IPAddress.Any, 8000));
-            listenerSocker.Listen(5);
+            listenerSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            listenerSocket.Bind(new IPEndPoint(IPAddress.Any, 8000));
+            listenerSocket.Listen(5);
 
             serverThread = new Thread(ListeningThread);
             serverThread.Start();
@@ -36,16 +41,22 @@ namespace Server
         {
             Socket client;
             Thread thread;
-            
-            while (true)
+            try
             {
-                client = listenerSocker.Accept();
-                clients.Add(client);
+                while (true)
+                {
+                    client = listenerSocket.Accept();
+                    clients.Add(client);
 
-                thread = new Thread(Handler);
+                    thread = new Thread(Handler);
 
-                thread.Start(client);
-                threads.Add(thread);
+                    thread.Start(client);
+                    threads.Add(thread);
+                }
+            }
+            catch (SocketException e)
+            {
+                Console.WriteLine($"Error: {e.Message}");
             }
         }
 
@@ -55,6 +66,7 @@ namespace Server
             int readBytes;
             Socket clientSocket = client as Socket;
             string[] values;
+            string msg;
 
             while (true)
             {
@@ -70,19 +82,23 @@ namespace Server
                     {
                         if (values[1] == "CONNECT")
                         {
+                            msg = $"{values[0]} connected to the chat!";
                             clients.ForEach(cl => 
-                            cl.Send(Encoding.UTF8.GetBytes($"{values[0]} connected to the chat!")));
+                                            cl.Send(Encoding.UTF8.GetBytes(msg)));
                         }
                         else if (values[1] == "DISCONNECT") 
                         {
+                            msg = $"{values[0]} disconnected from the chat!";
                             clients.Remove(clientSocket);
                             clients.ForEach(cl => 
-                            cl.Send(Encoding.UTF8.GetBytes($"{values[0]} disconnected from the chat!")));
+                                            cl.Send(Encoding.UTF8.GetBytes(msg)));
                         }
                         else
                         {
+                            msg = string.Join(":  ", values);
                             clients.ForEach(cl => cl.Send(buffer));
                         }
+                        context.Send(logMsg, msg);
                     }
                 }
                 catch (SocketException)
@@ -93,8 +109,14 @@ namespace Server
             }
         }
 
+        private void logMsg(object msg)
+        {
+            LoggerTextBlock.Text += $"{msg as string}\n";
+        }
+
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            listenerSocket.Close();
             serverThread.Abort();
             clients.ForEach(cl => cl.Close());
             threads.ForEach(th => th.Abort());
