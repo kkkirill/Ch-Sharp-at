@@ -11,6 +11,7 @@ namespace Client
     {
         private Socket socket;
         private Thread thread;
+        private bool isConnected;
         private SynchronizationContext context;
 
         public MainWindow()
@@ -18,17 +19,25 @@ namespace Client
             InitializeComponent();
 
             context = SynchronizationContext.Current;
+            isConnected = false;
         }
 
         private void HandleMessages(object syncContext)
         {
             byte[] recBuf = new byte[2048];
-
-            while (true)
+            try
             {
-                socket.Receive(recBuf);
-                if (socket.ReceiveBufferSize != 0)
-                    ((SynchronizationContext)syncContext).Send(AddMessage, Encoding.UTF8.GetString(recBuf));
+                while (true)
+                {
+                    socket.Receive(recBuf);
+                    if (socket.ReceiveBufferSize != 0)
+                        ((SynchronizationContext)syncContext).Send(AddMessage, Encoding.UTF8.GetString(recBuf));
+                }
+            }
+            catch (SocketException)
+            {
+                disconnectButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                MessageBox.Show("Internal server error! Disconnected", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -67,34 +76,46 @@ namespace Client
                 thread.Start(context);
                 socket.Send(Encoding.UTF8.GetBytes($"{usernameField.Text}:  CONNECT"));
                 MessageBox.Show("Connected", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                isConnected = true;
             }
             catch (SocketException)
             {
                 MessageBox.Show("Cannot connect to the server", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                connectButton.Click -= connectButton_Click;
+                isConnected = false;
             }
         }
 
         private void sendButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!isConnected)
+            {
+                MessageBox.Show("You aren't connected", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
             socket.Send(Encoding.UTF8.GetBytes($"{usernameField.Text}:  {inputMessageTextBox.Text}"));
             inputMessageTextBox.Text = "";
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            socket.Close();
+            socket?.Close();
             thread?.Abort();
         }
 
         private void disconnectButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!isConnected)
+            {
+                MessageBox.Show("You aren't connected", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
             socket.Send(Encoding.UTF8.GetBytes($"{usernameField.Text}:  DISCONNECT"));
             socket.Close();
-            thread?.Abort();
+            thread.Abort();
             MessagesPanel.Children.Clear();
             inputMessageTextBox.Clear();
             MessageBox.Show("Disconnected", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            isConnected = false;
         }
     }
 }
